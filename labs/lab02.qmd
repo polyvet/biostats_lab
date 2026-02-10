@@ -212,8 +212,9 @@ df <- tibble::tibble(
 
 dplyr::glimpse(df)
 ```
+::: {.callout-note collapse="true"}
 
-⸻
+---
 
 3. Ποιοτικές μεταβλητές: σωστή περιγραφή & σωστή αναπαράσταση
 
@@ -222,6 +223,7 @@ dplyr::glimpse(df)
 Σωστή περιγραφή: συχνότητες και ποσοστά
 Σωστή οπτικοποίηση: bar plot (ή pie, αλλά bar είναι προτιμότερο)
 
+```{r}
 tab_sex <- df |>
   dplyr::count(sex) |>
   dplyr::mutate(percent = 100 * n / sum(n))
@@ -231,7 +233,7 @@ tab_sex
 ggplot(df, aes(x = sex)) +
   geom_bar() +
   labs(title = "Φύλο (binary)", x = "Sex", y = "Count")
-
+```
 
 ⸻
 
