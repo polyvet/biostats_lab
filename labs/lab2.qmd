@@ -1,0 +1,299 @@
+---
+title: "Lab 1 – Μεταβλητές & Τύποι Δεδομένων (R)"
+subtitle: "Βιοστατιστική"
+author: "Polyvet"
+format:
+  html:
+    toc: true
+    code-fold: true
+    code-tools: true
+execute:
+  warning: false
+  message: false
+---
+
+## Στόχοι του εργαστηρίου
+
+Με το τέλος του Lab θα μπορείς να:
+
+1. Εξηγείς *γιατί* χρειαζόμαστε Βιοστατιστική σε κλινικά/επιδημιολογικά δεδομένα.
+2. Ορίζεις τι είναι **μεταβλητή**.
+3. Διακρίνεις και ταξινομείς μεταβλητές σε:
+   - **Ποιοτικές**: διχοτομικές (binary), ονομαστικές (nominal), διατεταγμένες (ordinal)
+   - **Ποσοτικές**: διακριτές (discrete), συνεχείς (continuous)
+4. Κάνεις βασικό “data audit”: τύποι στη R (`numeric`, `integer`, `factor`, `character`, `logical`).
+5. Παράγεις τα πρώτα descriptive outputs (πίνακες συχνοτήτων / μέσοι-διάμεσοι / απλά γραφήματα).
+
+---
+
+## 0. Προετοιμασία: Πακέτα
+
+> Αν τρέχεις το lab σε δικό σου R (RStudio) ή σε cloud (Posit Cloud), αυτό θα εγκαταστήσει ό,τι λείπει.
+> Στο GitHub Actions θα έχεις ήδη τα "basic" packages από το workflow, αλλά αυτό το chunk δεν ενοχλεί.
+
+```{r setup, include=FALSE}
+options(timeout = 600)
+
+pkgs <- c(
+  "dplyr",
+  "tidyr",
+  "ggplot2",
+  "readr",
+  "medicaldata",
+  "tibble"
+)
+
+to_install <- setdiff(pkgs, rownames(installed.packages()))
+if (length(to_install) > 0) {
+  install.packages(to_install, repos = "https://cloud.r-project.org")
+}
+
+suppressPackageStartupMessages(
+  invisible(lapply(pkgs, library, character.only = TRUE))
+)
+
+
+⸻
+
+1. Γιατί χρειαζόμαστε Βιοστατιστική;
+
+Μικρή συζήτηση (2–3 λεπτά)
+
+Σκέψου 3 παραδείγματα από την ιατρική/δημόσια υγεία όπου χρειάζεται απόφαση βάσει δεδομένων:
+	•	Διάγνωση: Πόσο καλά δουλεύει ένα τεστ;
+	•	Θεραπεία: Μειώνει ένας παράγοντας/αγωγή τον κίνδυνο συμβάντος;
+	•	Πρόληψη/Επιδημιολογία: Πόσο συχνή είναι μια νόσος; Πώς αλλάζει στο χρόνο;
+
+Παραδοτέο (γρήγορο): γράψε 2 προτάσεις “πρόβλημα → τι θέλω να εκτιμήσω”.
+
+::: {.callout-note}
+Τι θα κοιτάμε σε κάθε dataset από εδώ και πέρα;
+	•	Τι “είδος” έχει κάθε μεταβλητή
+	•	Τι σημαίνει αυτό για τους σωστούς υπολογισμούς/γραφήματα
+	•	Τι μπορεί να πάει λάθος αν τη χειριστώ σαν λάθος τύπο
+:::
+
+⸻
+
+2. Μεταβλητές: ορισμός και έννοια
+
+Μεταβλητή: κάτι που μπορεί να πάρει διαφορετικές τιμές σε άτομα/μονάδες/χρόνο.
+
+Παραδείγματα μεταβλητών:
+	•	ηλικία (years)
+	•	φύλο (Male/Female)
+	•	έκβαση (Ναι/Όχι)
+	•	στάδιο νόσου (I, II, III, IV)
+
+⸻
+
+3. Ποιοτικές μεταβλητές (categorical)
+
+3.1 Διχοτομικές (binary / dichotomous)
+
+Έχουν δύο τιμές (π.χ. 0/1, No/Yes).
+
+3.2 Ονομαστικές (nominal)
+
+Πολλές κατηγορίες χωρίς εγγενή διάταξη (π.χ. ομάδα αίματος).
+
+3.3 Διατεταγμένες (ordinal)
+
+Κατηγορίες με ουσιαστική διάταξη (π.χ. mild/moderate/severe).
+
+⸻
+
+4. Ποσοτικές μεταβλητές (numeric)
+
+4.1 Διακριτές (discrete)
+
+Ακέραιες μετρήσεις (π.χ. αριθμός επισκέψεων).
+
+4.2 Συνεχείς (continuous)
+
+Θεωρητικά άπειρες τιμές σε διάστημα (π.χ. αρτηριακή πίεση).
+
+⸻
+
+5. Dataset: {medicaldata}
+
+Θα χρησιμοποιήσουμε datasets από το πακέτο {medicaldata}.
+
+5.1 Δες ποια datasets υπάρχουν
+
+data(package = "medicaldata")$results |>
+  as.data.frame() |>
+  dplyr::select(Item, Title) |>
+  head(15)
+
+5.2 Φόρτωσε ένα dataset (auto επιλογή)
+
+Θα προσπαθήσουμε να φορτώσουμε πρώτα ένα “κλινικό” dataset αν υπάρχει. Αν όχι, παίρνουμε το πρώτο διαθέσιμο.
+
+avail <- data(package = "medicaldata")$results[, "Item"]
+
+candidates <- c("covid_testing", "covid_hospital", "trial", "hospital", "icu", "diabetes")
+pick <- candidates[candidates %in% avail]
+
+if (length(pick) > 0) {
+  chosen <- pick[1]
+} else {
+  chosen <- avail[1]
+}
+
+data(list = chosen, package = "medicaldata")
+df <- get(chosen)
+
+chosen
+dim(df)
+names(df)[1:min(15, ncol(df))]
+
+
+⸻
+
+6. Data audit: τύποι μεταβλητών στη R
+
+6.1 Τι τύπο έχει κάθε μεταβλητή;
+
+tibble::tibble(
+  variable = names(df),
+  class = sapply(df, function(x) paste(class(x), collapse = ", "))
+) |>
+  print(n = 100)
+
+6.2 Αυτόματος χάρτης: ποιοτικές vs ποσοτικές
+
+Κανόνας εργαστηρίου:
+	•	factor, character, logical → ποιοτική
+	•	numeric, integer → ποσοτική
+	•	integer με λίγες τιμές → συχνά διακριτή
+
+var_map <- tibble::tibble(
+  variable = names(df),
+  class = sapply(df, function(x) class(x)[1]),
+  n_unique = sapply(df, function(x) dplyr::n_distinct(x, na.rm = TRUE))
+) |>
+  dplyr::mutate(
+    broad_type = dplyr::case_when(
+      class %in% c("factor", "character", "logical") ~ "Qualitative",
+      class %in% c("numeric", "integer") ~ "Quantitative",
+      TRUE ~ "Other"
+    ),
+    suggested_subtype = dplyr::case_when(
+      broad_type == "Qualitative" & n_unique == 2 ~ "binary (likely)",
+      broad_type == "Qualitative" & n_unique > 2  ~ "nominal/ordinal (inspect)",
+      broad_type == "Quantitative" & class == "integer" ~ "discrete (likely)",
+      broad_type == "Quantitative" & class == "numeric" ~ "continuous (likely)",
+      TRUE ~ "inspect"
+    )
+  )
+
+var_map |> print(n = 100)
+
+
+⸻
+
+7. Περιγραφικά: τι κάνω ανά τύπο;
+
+7.1 Ποιοτικές μεταβλητές → πίνακας συχνοτήτων + barplot
+
+qual_vars <- var_map |> dplyr::filter(broad_type == "Qualitative") |> dplyr::pull(variable)
+qual_vars
+
+if (length(qual_vars) > 0) {
+  v <- qual_vars[1]
+
+  tab <- df |>
+    dplyr::count(.data[[v]]) |>
+    dplyr::mutate(prop = n / sum(n))
+
+  tab |> print(n = 100)
+
+  ggplot(df, aes(x = .data[[v]])) +
+    geom_bar() +
+    labs(x = v, y = "Count", title = paste("Barplot:", v)) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+7.2 Ποσοτικές μεταβλητές → summary + histogram + boxplot
+
+quant_vars <- var_map |> dplyr::filter(broad_type == "Quantitative") |> dplyr::pull(variable)
+quant_vars
+
+if (length(quant_vars) > 0) {
+  v <- quant_vars[1]
+
+  print(summary(df[[v]]))
+
+  ggplot(df, aes(x = .data[[v]])) +
+    geom_histogram(bins = 30) +
+    labs(x = v, y = "Count", title = paste("Histogram:", v))
+
+  ggplot(df, aes(y = .data[[v]])) +
+    geom_boxplot() +
+    labs(y = v, title = paste("Boxplot:", v))
+}
+
+
+⸻
+
+8. Ασκήσεις (ατομικά ή σε ομάδες)
+
+Άσκηση 1 — Ταξινόμηση μεταβλητών
+
+Διάλεξε 5 μεταβλητές από το dataset σου και για κάθε μία γράψε:
+	•	ποιοτική/ποσοτική
+	•	αν ποιοτική: binary/nominal/ordinal
+	•	αν ποσοτική: discrete/continuous
+	•	τι θα παρουσίαζες: frequency table / mean & sd / median & IQR / plot
+
+::: {.callout-tip collapse=“true”}
+
+Ενδεικτική μορφή απάντησης (σκελετός)
+
+variable	type	subtype	display
+age	Quantitative	continuous	median (IQR), histogram
+sex	Qualitative	nominal	n (%), barplot
+outcome	Qualitative	binary	n (%), barplot
+:::			
+
+
+⸻
+
+Άσκηση 2 — Διόρθωσε “λάθος” τύπο (character → factor)
+
+Βρες μια μεταβλητή που είναι character αλλά θα ήθελες να είναι κατηγορική (factor).
+Κάνε:
+	1.	unique(df$var)
+	2.	Μετατροπή σε factor()
+	3.	Έλεγξε class(df$var) ξανά
+
+# Παράδειγμα (προσαρμόζεις το όνομα μεταβλητής)
+# v <- "sex"
+# unique(df[[v]])
+# df[[v]] <- factor(df[[v]])
+# class(df[[v]])
+
+::: {.callout-tip collapse=“true”}
+Hint: Αν είναι ordinal (π.χ. mild/moderate/severe), βάλε levels με σειρά:
+factor(x, levels = c("mild","moderate","severe"), ordered = TRUE)
+:::
+
+⸻
+
+Άσκηση 3 — Μικρό report (5 γραμμές)
+
+Γράψε 5 γραμμές που να περιγράφουν:
+	•	ποιο dataset χρησιμοποίησες
+	•	πόσες παρατηρήσεις/μεταβλητές
+	•	2 ποιοτικές μεταβλητές και πώς τις παρουσίασες
+	•	2 ποσοτικές μεταβλητές και πώς τις παρουσίασες
+	•	1 πιθανό λάθος (π.χ. ordinal ως nominal, numeric ως factor)
+
+⸻
+
+9. Τι κρατάμε (take-home)
+	1.	Πριν κάνεις οποιοδήποτε στατιστικό τεστ: έλεγξε τύπους/κλίμακες.
+	2.	Η σωστή στατιστική ξεκινάει από σωστή αναπαράσταση μεταβλητών.
+	3.	Τα datasets της {medicaldata} είναι ιδανικά για practice.
+
