@@ -10,6 +10,8 @@ website:
         text: Home
       - href: labs/lab01.qmd
         text: Lab 1
+      - href: labs/lab02.qmd
+        text: Lab 2
 
 format:
   html:
