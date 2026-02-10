@@ -31,7 +31,7 @@ execute:
 
 **Δεν χρειάζεται να τροποποιήσετε αυτόν τον κώδικα.**  Απλώς βεβαιωθείτε ότι εκτελείται χωρίς σφάλματα.
 
-```{r setup, include=FALSE}
+```{r setup}
 options(timeout = 600)
 
 pkgs <- c("dplyr", "ggplot2", "tidyr", "tibble")
