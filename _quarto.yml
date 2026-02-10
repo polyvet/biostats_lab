@@ -1,0 +1,18 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Βιοστατιστική – Εργαστήρια"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: labs/lab01.qmd
+        text: Lab 1
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    code-fold: true
