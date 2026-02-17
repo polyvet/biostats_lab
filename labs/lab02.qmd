@@ -1,0 +1,240 @@
+---
+title: "Lab 2 – Κατανομές Πιθανοτήτων & Μέτρα Περιγραφικής Στατιστικής"
+format:
+  html:
+    toc: true
+    code-fold: true
+    code-tools: true
+execute:
+  warning: false
+  message: false
+---
+
+## Στόχοι
+
+Με το τέλος του εργαστηρίου θα μπορείς να:
+
+- κατασκευάζεις κατανομή πιθανότητας διακριτής και συνεχούς μεταβλητής
+- υπολογίζεις και ερμηνεύεις:
+  - μέσο όρο
+  - διάμεσο
+  - διακύμανση
+  - τυπική απόκλιση
+  - εύρος
+  - συντελεστή μεταβλητότητας
+- συνδέεις histogram, ECDF και boxplot με τα μέτρα περιγραφής
+- γράφεις απλή συνάρτηση που υπολογίζει όλα τα βασικά μέτρα
+
+---
+
+## Προετοιμασία: Πακέτα
+
+```{r setup, include=FALSE}}
+pkgs <- c("dplyr", "ggplot2", "tibble")
+to_install <- setdiff(pkgs, rownames(installed.packages()))
+if (length(to_install) > 0) {
+  install.packages(to_install, repos = "https://cloud.r-project.org")
+}
+
+invisible(lapply(pkgs, library, character.only = TRUE))
+
+```
+
+----
+
+## 1. Κατανομή πιθανότητας διακριτής τυχαίας μεταβλητής
+
+Παράδειγμα: Αριθμός παιδιών ανά οικογένεια
+
+```{r}
+
+set.seed(123)
+
+x <- round(rlnorm(1000, 0.3, 0.5))
+x <- c(x, rep(0, 500))  # προσθέτουμε οικογένειες χωρίς παιδιά
+
+```
+
+Ιστόγραμμα
+
+```{r}
+hist(x, main="Αριθμός παιδιών", xlab="Παιδιά")
+```
+
+Πίνακας συχνοτήτων
+
+```{r}
+freq <- table(x)
+freq
+```
+
+Σχετικές συχνότητες (Κατανομή πιθανότητας)
+
+```{r}
+prob <- prop.table(freq)
+prob
+sum(prob)
+```
+
+Αθροιστική κατανομή πιθανότητας
+
+```{r}
+cumsumprob <- cumsum(prob)
+cumsumprob
+
+plot(cumsumprob, main="Αθροιστική πιθανότητα")
+```
+
+ECDF
+
+```{r}
+plot(ecdf(x), main="Empirical CDF")
+```
+
+---
+
+## 2. Κατανομή πιθανότητας συνεχούς μεταβλητής
+
+Παράδειγμα: Ηλικία (Diabetes dataset)
+
+```{r}
+
+DD <- read.csv("https://publicifsv.sund.ku.dk/~tag/Teaching/share/data/Diabetes.csv")
+summary(DD)
+
+age <- DD$age
+
+```
+Histogram
+
+```{r}
+ggplot(DD, aes(x=age)) +
+  geom_histogram(bins=25) +
+  labs(title="Κατανομή ηλικίας")
+```
+
+Πίνακας συχνοτήτων (όχι ιδανικός για συνεχείς)
+
+```{r}
+freq_age <- table(age)
+head(freq_age)
+```
+ECDF
+
+```{r}
+plot(ecdf(age), main="ECDF ηλικίας")
+```
+---
+
+
+## 3. Μέτρα Κεντρικής Τάσης
+
+Μέσος
+
+```{r}
+mean(age)
+```
+
+Διάμεσος
+
+```{r}
+median(age)
+```
+
+---
+
+## 4. Μέτρα Διασποράς
+
+Εύρος
+
+```{r}
+range(age)
+```
+
+Διακύμανση
+
+```{r}
+var(age)
+```
+
+Τυπική Απόκλιση
+
+```{r}
+sd(age)
+```
+
+Συντελεστής Μεταβλητότητας
+
+```{r}
+sd(age) / mean(age)
+```
+
+---
+
+## 5. Boxplot & Histogram μαζί
+
+```{r}
+layout(matrix(c(1,2),2,1), height=c(1,4))
+
+par(mar=c(0,4,2,2))
+boxplot(age, horizontal=TRUE, col="lightblue", frame=FALSE)
+
+par(mar=c(4,4,2,2))
+hist(age, col="lightgreen", main="", xlab="Age")
+```
+
+___
+
+
+## 6. Δημιουργία Συνάρτησης Περιγραφικών Μέτρων
+
+```{r}
+
+describe_var <- function(x){
+  tibble(
+    Mean = mean(x, na.rm=TRUE),
+    Median = median(x, na.rm=TRUE),
+    Variance = var(x, na.rm=TRUE),
+    SD = sd(x, na.rm=TRUE),
+    Range = diff(range(x, na.rm=TRUE)),
+    CV = sd(x, na.rm=TRUE)/mean(x, na.rm=TRUE)
+  )
+}
+
+describe_var(age)
+```
+
+---
+
+## 7. Ασκήσεις
+
+### 7.1 Άσκηση 1
+
+Από το dataset diabetes:
+Διαλέξτε μια ποιοτική μεταβλητή
+Απεικονίστε την κατανομή πιθανότητας
+
+### 7.2 Άσκηση 2
+
+Διαλέξτε μια ποσοτική μεταβλητή
+→ Φτιάξτε histogram + ECDF
+
+### 7.3 Άσκηση 3
+
+Υπολογίστε μέτρα κεντρικής τάσης & διασποράς
+(Ιδανικά χρησιμοποιήστε τη συνάρτηση describe_var())
+
+### 7.4 Άσκηση 4
+
+Αν θεωρήσουμε χοληστερόλη > 180 ως υψηλή:
+	•	Τι ποσοστό των συμμετεχόντων έχει υψηλή χοληστερόλη;
+	•	Τι ποσοστό άνω των 40 ετών έχει υψηλή χοληστερόλη;
+	•	Τι ποσοστό ανδρών και γυναικών έχει υψηλή χοληστερόλη;
+
+---
+
+🔑 Κεντρικό μήνυμα εργαστηρίου:
+Η κατανομή πιθανότητας περιγράφει ολόκληρη τη συμπεριφορά της μεταβλητής.
+Τα μέτρα κεντρικής τάσης και διασποράς είναι συμπυκνωμένες περιλήψεις αυτής της κατανομής.
+
+---
