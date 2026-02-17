@@ -29,7 +29,7 @@ execute:
 
 ## Προετοιμασία: Πακέτα
 
-```{r setup, include=FALSE}
+```{r setup}
 pkgs <- c("dplyr", "ggplot2", "tibble")
 to_install <- setdiff(pkgs, rownames(installed.packages()))
 if (length(to_install) > 0) {
