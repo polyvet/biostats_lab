@@ -99,7 +99,7 @@ plot(ecdf(x), main="Empirical CDF")
 
 ```{r}
 
-DD <- read.csv("https://github.com/plotly/datasets/blob/master/diabetes.csv")
+DD <- read.csv("data/diabetes.csv")
 summary(DD)
 
 age <- DD$age
