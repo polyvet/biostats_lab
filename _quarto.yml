@@ -1,13 +1,8 @@
+
 project:
   type: website
   output-dir: docs
-  render:
-    - "*.qmd"
-    - "!labs/lab05.qmd"
-    - "!labs/lab06.qmd"
-    - "!labs/lab07.qmd"
-    - "!labs/lab08.qmd"
-    - "!labs/lab09.qmd"
+
 
 website:
   title: "Βιοστατιστική – Εργαστήρια"
