@@ -1,0 +1,379 @@
+
+---
+title: "Lab 4 – Δειγματικές Κατανομές & Διαστήματα Εμπιστοσύνης"
+format:
+  html:
+    toc: true
+    code-fold: true
+    code-tools: true
+execute:
+  warning: false
+  message: false
+---
+
+## Στόχοι
+
+Με το τέλος του εργαστηρίου θα μπορείς να:
+
+- προσομοιώνεις δειγματικές κατανομές
+- υπολογίζεις standard error
+- κατασκευάζεις 95% διαστήματα εμπιστοσύνης
+- ερμηνεύεις σωστά ένα 95% CI
+
+---
+
+## Προετοιμασία
+
+```{r setup}
+pkgs <- c("ggplot2", "dplyr", "tibble", "scales")
+to_install <- setdiff(pkgs, rownames(installed.packages()))
+if (length(to_install) > 0) {
+  install.packages(to_install, repos = "https://cloud.r-project.org")
+}
+invisible(lapply(pkgs, library, character.only = TRUE))
+```
+
+---
+
+
+## 1. Δειγματική Κατανομή του Μέσου Όρου
+
+Αν $X_1, \dots, X_n$ είναι τυχαίο δείγμα από πληθυσμό με μέσο $\mu$ και διακύμανση $\sigma^2$, τότε ο δειγματικός μέσος:
+
+$$
+\bar{X} = \frac{1}{n}\sum_{i=1}^n X_i
+$$
+
+έχει:
+
+$$
+E(\bar{X}) = \mu
+$$
+
+και
+
+$$
+\text{Var}(\bar{X}) = \frac{\sigma^2}{n}
+$$
+
+Άρα το standard error είναι:
+
+$$
+SE(\bar{X}) = \frac{\sigma}{\sqrt{n}}
+$$
+
+
+
+### Προσομοίωση
+
+```{r}
+set.seed(1)
+
+Npop <- 200000
+pop <- rexp(Npop, rate = 1)
+
+mu <- mean(pop)
+sigma <- sd(pop)
+
+n <- 30
+B <- 5000
+
+xbar <- replicate(B, mean(sample(pop, n)))
+
+tibble(xbar = xbar) |>
+  ggplot(aes(x = xbar)) +
+  geom_histogram(bins = 40) +
+  geom_vline(xintercept = mu, linetype = 2) +
+  labs(title = "Δειγματική κατανομή του μέσου",
+       x = "x̄",
+       y = "Συχνότητα")
+
+```
+
+---
+
+
+## 2. Διαφορά Δύο Μέσων
+
+Για δύο ανεξάρτητα δείγματα:
+
+$$
+\bar{X}_1 - \bar{X}_2
+$$
+
+Αν η κοινή τυπική απόκλιση $\sigma$ είναι γνωστή:
+
+$$
+SE(\bar{X}_1 - \bar{X}_2)
+
+\sigma
+\sqrt{
+\frac{1}{n_1}
++
+\frac{1}{n_2}
+}
+$$
+
+---
+
+
+
+```{r}
+set.seed(2)
+
+B <- 5000
+n1 <- 15
+n2 <- 15
+sigma <- 2
+
+x1 <- replicate(B, mean(rnorm(n1, mean = 1, sd = sigma)))
+x2 <- replicate(B, mean(rnorm(n2, mean = 1, sd = sigma)))
+diff_means <- x1 - x2
+
+tibble(diff = diff_means) |>
+  ggplot(aes(x = diff)) +
+  geom_histogram(bins = 40) +
+  geom_vline(xintercept = 0, linetype = 2) +
+  labs(title = "Δειγματική κατανομή διαφοράς μέσων",
+       x = "x̄1 − x̄2",
+       y = "Συχνότητα")
+
+```
+
+---
+
+
+## 3. Δειγματική Κατανομή Ποσοστού
+
+Για $\hat{p} = \frac{X}{n}$:
+
+$$
+E(\hat{p}) = p
+$$
+
+$$
+\text{Var}(\hat{p}) = \frac{p(1-p)}{n}
+$$
+
+$$
+SE(\hat{p})
+
+\sqrt{
+\frac{p(1-p)}{n}
+}
+$$
+
+---
+
+
+```{r}
+set.seed(3)
+
+p <- 0.20
+n <- 100
+B <- 5000
+
+phat <- replicate(B, mean(rbinom(n, 1, p)))
+
+tibble(phat = phat) |>
+  ggplot(aes(x = phat)) +
+  geom_histogram(bins = 40) +
+  geom_vline(xintercept = p, linetype = 2) +
+  labs(title = "Δειγματική κατανομή του p-hat",
+       x = "p-hat",
+       y = "Συχνότητα")
+```
+
+
+---
+
+## 4. Διαφορά Δύο Ποσοστών
+
+$$
+\hat{d} = \hat{p}_1 - \hat{p}_2
+$$
+
+$$
+SE(\hat{p}_1 - \hat{p}_2)
+
+\sqrt{
+\frac{p_1(1-p_1)}{n_1}
++
+\frac{p_2(1-p_2)}{n_2}
+}
+$$
+
+---
+
+
+```{r}
+set.seed(4)
+
+p1 <- 0.10
+p2 <- 0.25
+n1 <- 100
+n2 <- 150
+B <- 5000
+
+phat1 <- replicate(B, mean(rbinom(n1, 1, p1)))
+phat2 <- replicate(B, mean(rbinom(n2, 1, p2)))
+dhat <- phat1 - phat2
+
+tibble(dhat = dhat) |>
+  ggplot(aes(x = dhat)) +
+  geom_histogram(bins = 40) +
+  geom_vline(xintercept = (p1 - p2), linetype = 2) +
+  labs(title = "Δειγματική κατανομή διαφοράς ποσοστών",
+       x = "p̂1 − p̂2",
+       y = "Συχνότητα")
+
+```
+
+---
+
+## 5. Διαστήματα Εμπιστοσύνης (CI)
+
+### Μέσος Όρος (γνωστή $\sigma$)
+
+$$
+CI_{95%}
+
+\bar{x}
+\pm
+1.96
+\frac{\sigma}{\sqrt{n}}
+$$
+
+---
+
+### Διαφορά Μέσων
+
+$$
+CI_{95%}
+
+(\bar{x}_1 - \bar{x}_2)
+\pm
+1.96
+\sigma
+\sqrt{
+\frac{1}{n_1}
++
+\frac{1}{n_2}
+}
+$$
+
+---
+
+### Ποσοστό
+
+$$
+CI_{95%}
+
+\hat{p}
+\pm
+1.96
+\sqrt{
+\frac{\hat{p}(1-\hat{p})}{n}
+}
+$$
+
+---
+
+### Διαφορά Ποσοστών
+
+$$
+CI_{95%}
+
+(\hat{p}_1 - \hat{p}_2)
+\pm
+1.96
+\sqrt{
+\frac{\hat{p}_1(1-\hat{p}_1)}{n_1}
++
+\frac{\hat{p}_2(1-\hat{p}_2)}{n_2}
+}
+$$
+
+---
+
+6. Ερμηνεία 95% CI
+
+Το 95% CI σημαίνει ότι:
+
+$$
+P(\theta \in CI(X)) = 0.95
+$$
+
+όπου η πιθανότητα αναφέρεται στη διαδικασία δειγματοληψίας.
+
+---
+
+
+## 7. Ασκήσεις
+
+
+### Άσκηση 1
+
+Δύο ανεξάρτητα δείγματα με:
+
+- $\bar{x}_1 = 82$
+- $\bar{x}_2 = 71$
+- $n_1 = n_2 = 15$
+- $\sigma = 10$
+
+Υπολογίστε:
+
+1. Τη διαφορά μέσων $\bar{x}_1 - \bar{x}_2$  
+2. Το standard error:
+
+   $$
+   SE(\bar{X}_1 - \bar{X}_2)
+   =
+   \sigma
+   \sqrt{
+   \frac{1}{n_1}
+   +
+   \frac{1}{n_2}
+   }
+   $$
+
+3. Το 95% διάστημα εμπιστοσύνης:
+
+   $$
+   (\bar{x}_1 - \bar{x}_2)
+   \pm
+   1.96
+   \cdot
+   SE(\bar{X}_1 - \bar{X}_2)
+   $$
+
+---
+
+### Άσκηση 2
+
+Εμβολιασμένοι: $x_1=15$, $n_1=100$
+Ανεμβολίαστοι: $x_2=40$, $n_2=150$
+	1.	Υπολογίστε τα ποσοστά
+	2.	Υπολογίστε το 95% CI για τη διαφορά ποσοστών
+
+---
+
+## Σύνοψη
+
+- Οι δειγματικές κατανομές περιγράφουν τη μεταβλητότητα των εκτιμητών από δείγμα σε δείγμα.
+
+- Το standard error είναι η τυπική απόκλιση της δειγματικής κατανομής ενός εκτιμητή:
+  
+  $$
+  SE(\hat{\theta}) = \sqrt{\mathrm{Var}(\hat{\theta})}
+  $$
+
+- Ένα διάστημα εμπιστοσύνης επιπέδου $1-\alpha$ ικανοποιεί:
+
+  $$
+  P\big(\theta \in CI(X)\big) = 1-\alpha
+  $$
+
+  όπου η πιθανότητα αφορά τη διαδικασία δειγματοληψίας και όχι μια συγκεκριμένη τιμή της παραμέτρου.
+
+---
