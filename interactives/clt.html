@@ -1,0 +1,356 @@
+  <!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Δειγματική Κατανομή του Μέσου Όρου - SPA Infographic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            chtml: { scale: 1.1 }
+        };
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            deep: '#1e3a8a',
+                            primary: '#3b82f6',
+                            light: '#bae6fd',
+                            accent: '#f59e0b',
+                            danger: '#ef4444'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 50vh;
+            max-height: 450px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        body {
+            background-color: #f8fafc;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-brand-accent selection:text-white pb-20">
+
+    <div style="display:none;" aria-hidden="true">
+        META-INFORMATION:
+        Palette: Vibrant Trust (Deep Blue #1e3a8a, Primary Blue #3b82f6, Light Blue #bae6fd, Amber Accent #f59e0b).
+        Plan: 
+        1. Updated CLT section to remove specific "n=30" rule, emphasizing general large sample sizes.
+        2. Revised review questions to focus on sample size dynamics.
+        3. Maintained Chart.js wrapping and tooltip requirements.
+        CONFIRMATION: NEITHER Mermaid JS NOR SVG were used anywhere in this output.
+    </div>
+
+    <header class="bg-gradient-to-r from-brand-deep to-brand-primary text-white py-16 px-6 shadow-xl mb-12">
+        <div class="max-w-5xl mx-auto text-center">
+            <span class="inline-block py-1 px-3 rounded-full bg-white/20 text-brand-light font-semibold text-sm mb-4 tracking-wider uppercase">Στατιστικη για τη Δημοσια Υγεια</span>
+            <h1 class="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">Η Δειγματική Κατανομή <br><span class="text-brand-accent">του Μέσου Όρου</span></h1>
+            <p class="text-lg md:text-xl text-brand-light max-w-3xl mx-auto leading-relaxed">
+                Η «γέφυρα» της <strong>Επαγωγικής Στατιστικής</strong>. Πώς χρησιμοποιούμε τα δεδομένα από ένα μικρό δείγμα για να εξάγουμε έγκυρα συμπεράσματα για ολόκληρους πληθυσμούς.
+            </p>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-6 space-y-16">
+
+        <section class="animate-fade-in-up">
+            <div class="mb-8 text-center max-w-3xl mx-auto">
+                <h2 class="text-3xl font-bold text-brand-deep mb-4">1. Η Πρόκληση στη Δημόσια Υγεία</h2>
+                <p class="text-slate-600 text-lg">
+                    Στη Δημόσια Υγεία, σπάνια μπορούμε να μετρήσουμε ολόκληρο τον πληθυσμό. Βασιζόμαστε σε <strong>δείγματα</strong>, αλλά η ακρίβεια της εκτίμησής μας εξαρτάται άμεσα από το αν το δείγμα μας είναι επαρκές σε μέγεθος.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div class="glass-card rounded-2xl shadow-lg p-8 border-t-4 border-t-brand-deep relative overflow-hidden text-center transform transition duration-300 hover:scale-105">
+                    <div class="text-6xl mb-4">🌍</div>
+                    <h3 class="text-2xl font-bold text-brand-deep mb-6">Συνολικός Πληθυσμός</h3>
+                    <div class="space-y-4">
+                        <div class="bg-slate-50 p-4 rounded-lg flex items-center justify-between">
+                            <span class="text-slate-500 font-medium">Μέση Τιμή</span>
+                            <span class="text-3xl font-bold text-brand-primary">$\mu$</span>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-lg flex items-center justify-between">
+                            <span class="text-slate-500 font-medium">Τυπική Απόκλιση</span>
+                            <span class="text-3xl font-bold text-brand-primary">$\sigma$</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-2xl shadow-lg p-8 border-t-4 border-t-brand-accent relative overflow-hidden text-center transform transition duration-300 hover:scale-105">
+                    <div class="text-6xl mb-4">🧑‍🤝‍🧑</div>
+                    <h3 class="text-2xl font-bold text-brand-deep mb-6">Επιλεγμένο Δείγμα</h3>
+                    <div class="space-y-4">
+                        <div class="bg-slate-50 p-4 rounded-lg flex items-center justify-between">
+                            <span class="text-slate-500 font-medium">Μέσος Όρος (Μέγεθος $n$)</span>
+                            <span class="text-3xl font-bold text-brand-accent">$\bar{x}$</span>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-lg flex items-center justify-between">
+                            <span class="text-slate-500 font-medium">Τυπική Απόκλιση</span>
+                            <span class="text-3xl font-bold text-brand-accent">$s$</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-3xl shadow-xl p-8 md:p-12 relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-brand-light rounded-full mix-blend-multiply filter blur-3xl opacity-30 transform translate-x-1/2 -translate-y-1/2"></div>
+            
+            <div class="mb-10 max-w-4xl">
+                <span class="text-brand-accent font-bold tracking-wider uppercase text-sm">Θεμελιωδης Κανονας</span>
+                <h2 class="text-3xl md:text-4xl font-bold text-brand-deep mt-2 mb-4">Το Κεντρικό Οριακό Θεώρημα (ΚΟΘ)</h2>
+                <p class="text-slate-600 text-lg leading-relaxed mb-4">
+                    Το ΚΟΘ δηλώνει ότι αν το μέγεθος του δείγματος είναι <strong>επαρκώς μεγάλο</strong>, τότε η κατανομή όλων των πιθανών δειγματικών μέσων θα έχει <strong>Κανονική Κατανομή</strong>, ακόμα και αν ο αρχικός πληθυσμός ακολουθεί άλλη μορφή κατανομής.
+                </p>
+                <div class="inline-block bg-brand-deep text-white px-6 py-3 rounded-lg shadow-md font-medium">
+                    Μέση τιμή κατανομής: $\mu_{\bar{x}} = \mu$
+                </div>
+            </div>
+
+            <div class="chart-container bg-slate-50 rounded-xl p-4 md:p-6 border border-slate-100">
+                <canvas id="cltChart"></canvas>
+            </div>
+            
+            <p class="text-center text-sm text-slate-500 mt-4 italic">
+                Οπτικοποίηση: Παρατηρήστε πώς η καμπύλη "ψηλώνει" και συγκεντρώνεται γύρω από το κέντρο καθώς αυξάνεται το δείγμα.
+            </p>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-5 gap-12 items-center">
+            <div class="lg:col-span-2 space-y-6">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-light text-brand-deep text-2xl font-bold mb-2">SE</div>
+                <h2 class="text-3xl font-bold text-brand-deep">Τυπικό Σφάλμα (Standard Error)</h2>
+                <p class="text-slate-600 text-lg">
+                    Το <strong>Τυπικό Σφάλμα</strong> είναι ο δείκτης της αβεβαιότητάς μας. Όσο πιο μικρό είναι, τόσο πιο κοντά στην πραγματικότητα βρίσκεται ο μέσος όρος του δείγματός μας.
+                </p>
+                
+                <div class="bg-gradient-to-br from-brand-deep to-brand-primary p-6 rounded-2xl text-white shadow-lg text-center my-8">
+                    <p class="text-sm uppercase tracking-wider mb-2 opacity-80">Τυπος Υπολογισμου</p>
+                    <p class="text-5xl font-serif py-4">$SE = \frac{\sigma}{\sqrt{n}}$</p>
+                </div>
+
+                <ul class="space-y-4">
+                    <li class="flex items-start">
+                        <span class="text-brand-accent mr-3 mt-1 text-xl">✓</span>
+                        <p class="text-slate-700"><strong>Μεγάλο δείγμα ($n$):</strong> Μικρό σφάλμα και υψηλή ακρίβεια.</p>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-brand-accent mr-3 mt-1 text-xl">✓</span>
+                        <p class="text-slate-700"><strong>Μικρό δείγμα ($n$):</strong> Μεγάλη διασπορά και χαμηλότερη αξιοπιστία.</p>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="text-brand-accent mr-3 mt-1 text-xl">✓</span>
+                        <p class="text-slate-700">Η μείωση του σφάλματος απαιτεί δυσανάλογα μεγαλύτερη αύξηση του δείγματος.</p>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="lg:col-span-3">
+                <div class="glass-card rounded-3xl p-6 md:p-8 shadow-xl border-t-4 border-t-brand-accent">
+                    <h3 class="text-xl font-bold text-center text-slate-800 mb-6">Σύγκριση Ακρίβειας: Μικρό vs Μεγάλο Δείγμα</h3>
+                    <div class="chart-container">
+                        <canvas id="seChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-brand-deep text-white rounded-3xl p-8 md:p-12 shadow-2xl relative">
+            <h2 class="text-3xl font-bold mb-8 text-center text-brand-light">Βασικά Ερωτήματα Ανασκόπησης</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white/10 p-6 rounded-xl backdrop-blur-sm border border-white/20">
+                    <h4 class="font-bold text-brand-accent text-lg mb-2">1. Η διαφορά SD και SE;</h4>
+                    <p class="text-slate-200">Η SD μετράει τη διασπορά των ατόμων στον πληθυσμό, ενώ το SE μετράει τη διασπορά των μέσων όρων των δειγμάτων.</p>
+                </div>
+                <div class="bg-white/10 p-6 rounded-xl backdrop-blur-sm border border-white/20">
+                    <h4 class="font-bold text-brand-accent text-lg mb-2">2. Επίδραση μεγέθους δείγματος;</h4>
+                    <p class="text-slate-200">Όσο το δείγμα μεγαλώνει, η δειγματική κατανομή τείνει πάντα προς την κανονικότητα, καθιστώντας τις εκτιμήσεις μας πιο σταθερές.</p>
+                </div>
+                <div class="bg-white/10 p-6 rounded-xl backdrop-blur-sm border border-white/20">
+                    <h4 class="font-bold text-brand-accent text-lg mb-2">3. Πώς υποδιπλασιάζουμε το SE;</h4>
+                    <p class="text-slate-200">Για να μειώσουμε το σφάλμα στο μισό, πρέπει να <strong>τετραπλασιάσουμε</strong> το μέγεθος του δείγματος, λόγω της τετραγωνικής ρίζας στον τύπο.</p>
+                </div>
+                <div class="bg-white/10 p-6 rounded-xl backdrop-blur-sm border border-white/20">
+                    <h4 class="font-bold text-brand-accent text-lg mb-2">4. Αν ο πληθυσμός είναι ασύμμετρος;</h4>
+                    <p class="text-slate-200">Η δειγματική κατανομή θα "διορθώσει" την ασυμμετρία του πληθυσμού και θα γίνει κανονική, αρκεί το δείγμα να είναι επαρκές.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="text-center py-8 mt-8 text-slate-500 text-sm">
+        <p>Εκπαιδευτικό Υλικό - Στατιστική Δημόσιας Υγείας &bull; Σχεδιασμένο για Μέγιστη Κατανόηση</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const cltCtx = document.getElementById('cltChart').getContext('2d');
+            const xValues = [];
+            for (let i = 20; i <= 80; i += 1) { xValues.push(i); }
+
+            function normalDensity(x, mean, stdDev) {
+                const coef = 1 / (stdDev * Math.sqrt(2 * Math.PI));
+                const exponent = -Math.pow(x - mean, 2) / (2 * Math.pow(stdDev, 2));
+                return coef * Math.exp(exponent);
+            }
+
+            const mean = 50;
+            const popStdDev = 15;
+            
+            const popData = xValues.map(x => normalDensity(x, mean, popStdDev));
+            const smallNData = xValues.map(x => normalDensity(x, mean, popStdDev / Math.sqrt(8)));
+            const largeNData = xValues.map(x => normalDensity(x, mean, popStdDev / Math.sqrt(45)));
+
+            new Chart(cltCtx, {
+                type: 'line',
+                data: {
+                    labels: xValues,
+                    datasets: [
+                        {
+                            label: ['Μεγάλο Δείγμα', '(Υψηλή Ακρίβεια)'],
+                            data: largeNData,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.4)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            borderWidth: 3
+                        },
+                        {
+                            label: ['Μικρό Δείγμα', '(Χαμηλή Ακρίβεια)'],
+                            data: smallNData,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.3)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            borderWidth: 2
+                        },
+                        {
+                            label: ['Αρχικός Πληθυσμός', '(Ευρεία Διασπορά)'],
+                            data: popData,
+                            borderColor: '#94a3b8',
+                            backgroundColor: 'rgba(148, 163, 184, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        }
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    const item = tooltipItems[0];
+                                    let label = item.chart.data.labels[item.dataIndex];
+                                    return Array.isArray(label) ? label.join(' ') : label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 10 } },
+                        y: { display: false }
+                    }
+                }
+            });
+
+            const seCtx = document.getElementById('seChart').getContext('2d');
+            const rawLabels = [
+                "Πολύ Μικρό Δείγμα (n=10)", 
+                "Επαρκές Δείγμα (n=40)", 
+                "Μεγάλο Δείγμα (n=150)", 
+                "Πολύ Μεγάλο (n=600)", 
+                "Τεράστιο Δείγμα (n=2000)"
+            ];
+
+            const wrappedLabels = rawLabels.map(label => {
+                if (label.length > 16) {
+                    const words = label.split(' ');
+                    const lines = [];
+                    let currentLine = '';
+                    words.forEach(word => {
+                        if ((currentLine + word).length > 16) {
+                            if (currentLine.trim() !== '') lines.push(currentLine.trim());
+                            currentLine = word + ' ';
+                        } else {
+                            currentLine += word + ' ';
+                        }
+                    });
+                    if (currentLine.trim() !== '') lines.push(currentLine.trim());
+                    return lines;
+                }
+                return label;
+            });
+
+            const sigmaVal = 25; 
+            const nVals = [10, 40, 150, 600, 2000];
+            const seValues = nVals.map(n => sigmaVal / Math.sqrt(n));
+
+            new Chart(seCtx, {
+                type: 'bar',
+                data: {
+                    labels: wrappedLabels,
+                    datasets: [{
+                        label: 'Standard Error',
+                        data: seValues,
+                        backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#1e3a8a', '#0f172a'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    const item = tooltipItems[0];
+                                    let label = item.chart.data.labels[item.dataIndex];
+                                    return Array.isArray(label) ? label.join(' ') : label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
