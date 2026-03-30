@@ -1,0 +1,472 @@
+---
+title: "Lab 7 – Μη Παραμετρικά Τεστ"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: true
+execute:
+  warning: false
+  message: false
+---
+
+## Στόχοι
+
+Με το τέλος του εργαστηρίου θα μπορείς να:
+
+- εξηγείς πότε χρησιμοποιούμε μη παραμετρικά τεστ αντί παραμετρικών
+- αντιστοιχείς κάθε μη παραμετρικό τεστ με το παραμετρικό ανάλογό του
+- εφαρμόζεις στην R:
+  - **Wilcoxon Rank Sum** (δύο ανεξάρτητες ομάδες)
+  - **Wilcoxon Signed Rank** (ζευγαρωτά δεδομένα)
+  - **Kruskal-Wallis** (τρεις ή περισσότερες ομάδες)
+- εκτελείς post-hoc ανά δύο συγκρίσεις μετά από Kruskal-Wallis
+- ερμηνεύεις σωστά τα αποτελέσματα
+
+---
+
+## Προετοιμασία
+
+```{r setup}
+options(timeout = 600)
+
+pkgs <- c("dplyr", "ggplot2", "tibble", "readr")
+
+to_install <- setdiff(pkgs, rownames(installed.packages()))
+if (length(to_install) > 0) {
+  install.packages(to_install, repos = "https://cloud.r-project.org")
+}
+
+suppressPackageStartupMessages(
+  invisible(lapply(pkgs, library, character.only = TRUE))
+)
+
+set.seed(7)
+```
+
+---
+
+## 1. Παραμετρικά vs Μη Παραμετρικά Τεστ
+
+Τα παραμετρικά τεστ που μάθαμε στα Labs 5 και 6 (t-test, ANOVA) κάνουν **παραδοχές** για την κατανομή των δεδομένων — κυρίως ότι τα δεδομένα ακολουθούν **κανονική κατανομή**.
+
+Τα **μη παραμετρικά** τεστ δεν απαιτούν αυτή την παραδοχή. Τα χρησιμοποιούμε όταν:
+
+- Τα δεδομένα **δεν κατανέμονται κανονικά** και ούτε οι μετασχηματισμοί τους βοηθούν
+- Έχουμε **μικρό δείγμα** (π.χ. $n < 10$ ανά ομάδα)
+- Η έκβαση είναι **ordinal** (βαθμολογίες, κλίμακες τύπου Likert)
+- Υπάρχουν ισχυρά **outliers** που επηρεάζουν τον μέσο όρο
+
+::: {.callout-warning}
+**Τι θυσιάζουμε;** Τα μη παραμετρικά τεστ έχουν μικρότερη **στατιστική ισχύ** από τα παραμετρικά ανάλογά τους όταν η κανονικότητα ισχύει. Δηλαδή, χρειαζόμαστε μεγαλύτερο δείγμα για να ανιχνεύσουμε την ίδια διαφορά. Επίσης, δεν παράγουν εκτιμήσεις (π.χ. mean difference, CI) όπως τα παραμετρικά.
+:::
+
+---
+
+## 2. Αντιστοιχίες Παραμετρικών — Μη Παραμετρικών
+
+| Παραμετρικό | Μη Παραμετρικό ανάλογο | Χρήση |
+|-------------|------------------------|-------|
+| One-sample t-test | Wilcoxon Signed Rank (1 δείγμα) | Σύγκριση διαμέσου με τιμή αναφοράς |
+| Two-sample t-test | **Wilcoxon Rank Sum** (Mann-Whitney U) | 2 ανεξάρτητες ομάδες |
+| Paired t-test | **Wilcoxon Signed Rank** (paired) | Ζευγαρωτές μετρήσεις |
+| One-way ANOVA | **Kruskal-Wallis** | 3+ ανεξάρτητες ομάδες |
+
+Και οι τρεις μέθοδοι βασίζονται στις **κατατάξεις (ranks)** των τιμών αντί στις ίδιες τις τιμές — γι' αυτό είναι ανθεκτικές στα outliers και στη μη κανονικότητα.
+
+---
+
+## 3. Wilcoxon Rank Sum Test (Mann-Whitney U)
+
+### Πότε;
+
+Όταν θέλουμε να συγκρίνουμε δύο **ανεξάρτητες** ομάδες και δεν ισχύει η κανονικότητα.
+Αντικαθιστά το **two-sample t-test**.
+
+### Υποθέσεις
+
+$$H_0: \text{Οι δύο ομάδες έχουν την ίδια κατανομή (ίδια διάμεσο)}$$
+
+$$H_A: \text{Οι κατανομές των δύο ομάδων διαφέρουν}$$
+
+### Παράδειγμα: Ημέρες Νοσηλείας σε Δύο Θαλάμους
+
+Συγκρίνουμε τη διάρκεια νοσηλείας (ημέρες) μεταξύ δύο θαλάμων ενός νοσοκομείου. Τα δεδομένα είναι έντονα ασύμμετρα (μερικοί ασθενείς νοσηλεύονται πολύ περισσότερο).
+
+```{r}
+#| label: wilcox-data
+
+set.seed(7)
+
+ward_A <- round(rexp(12, rate = 1/5))  # μέση ≈ 5 μέρες
+ward_B <- round(rexp(12, rate = 1/8))  # μέση ≈ 8 μέρες
+
+# Σύνοψη
+tibble(
+  Θάλαμος = c(rep("Α", length(ward_A)), rep("Β", length(ward_B))),
+  Ημέρες  = c(ward_A, ward_B)
+) |>
+  group_by(Θάλαμος) |>
+  summarise(
+    n      = n(),
+    Median = median(Ημέρες),
+    IQR    = IQR(Ημέρες),
+    Mean   = round(mean(Ημέρες), 1),
+    SD     = round(sd(Ημέρες), 1)
+  )
+```
+
+```{r}
+#| label: wilcox-plot
+#| fig-cap: "Διάρκεια νοσηλείας ανά θάλαμο — ασύμμετρη κατανομή"
+
+tibble(
+  Θάλαμος = c(rep("Α", length(ward_A)), rep("Β", length(ward_B))),
+  Ημέρες  = c(ward_A, ward_B)
+) |>
+  ggplot(aes(x = Θάλαμος, y = Ημέρες, fill = Θάλαμος)) +
+  geom_boxplot(alpha = 0.55, outlier.shape = NA) +
+  geom_jitter(width = 0.15, size = 2, alpha = 0.7) +
+  scale_fill_manual(values = c("steelblue", "tomato")) +
+  labs(
+    title = "Διάρκεια νοσηλείας ανά θάλαμο",
+    x = "Θάλαμος", y = "Ημέρες νοσηλείας"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+::: {.callout-note}
+Τα δεδομένα είναι **ασύμμετρα** (αναμενόμενο για διάρκειες νοσηλείας). Αυτό κάνει το Wilcoxon Rank Sum καταλληλότερο από το t-test.
+:::
+
+### Εκτέλεση στην R
+
+```{r}
+#| label: wilcox-run
+
+wilcox.test(ward_A, ward_B)
+```
+
+::: {.callout-note}
+**Πώς διαβάζω το output:**
+
+- **W**: η στατιστική ελέγχου (αριθμός ζευγαριών όπου η τιμή από ομάδα Α > ομάδα Β)
+- **p-value**: αν $p < 0.05$, απορρίπτω $H_0$
+- Δεν εκτιμάται mean difference — αντίθετα σκεφτόμαστε σε όρους **διαμέσου**
+:::
+
+---
+
+## 4. Wilcoxon Signed Rank Test (Paired)
+
+### Πότε;
+
+Όταν έχουμε **ζευγαρωτές** μετρήσεις (π.χ. πριν/μετά στο ίδιο άτομο) και δεν ισχύει η κανονικότητα των διαφορών.
+Αντικαθιστά το **paired t-test**.
+
+### Υποθέσεις
+
+$$H_0: \text{Η διάμεσος των διαφορών (μετά − πριν) είναι μηδέν}$$
+
+$$H_A: \text{Η διάμεσος των διαφορών} \neq 0$$
+
+### Παράδειγμα: CRP Πριν και Μετά Αντιβιοτική Αγωγή
+
+Μετράμε την **CRP (mg/L)** σε 10 ασθενείς με βακτηριακή πνευμονία πριν και μετά από 7 ημέρες αντιβιοτικής αγωγής. Οι τιμές CRP είναι συχνά ασύμμετρες.
+
+```{r}
+#| label: signed-rank-data
+
+set.seed(7)
+
+crp_before <- round(sort(rexp(10, rate = 1/80)) + 20)
+crp_after  <- round(crp_before * runif(10, 0.3, 0.7))
+
+tibble(
+  Ασθενής    = 1:10,
+  `CRP πριν` = crp_before,
+  `CRP μετά` = crp_after,
+  Διαφορά    = crp_after - crp_before
+)
+```
+
+```{r}
+#| label: signed-rank-plot
+#| fig-cap: "CRP πριν και μετά αντιβιοτική αγωγή"
+
+tibble(
+  Ασθενής = rep(1:10, 2),
+  CRP     = c(crp_before, crp_after),
+  Χρόνος  = factor(rep(c("Πριν", "Μετά"), each = 10),
+                   levels = c("Πριν", "Μετά"))
+) |>
+  ggplot(aes(x = Χρόνος, y = CRP, group = Ασθενής)) +
+  geom_line(alpha = 0.4, color = "gray50") +
+  geom_point(aes(color = Χρόνος), size = 3) +
+  scale_color_manual(values = c("tomato", "steelblue")) +
+  labs(
+    title = "CRP πριν και μετά αντιβιοτική αγωγή (n=10)",
+    x = "", y = "CRP (mg/L)", color = ""
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+### Εκτέλεση στην R
+
+```{r}
+#| label: signed-rank-run
+
+wilcox.test(crp_before, crp_after, paired = TRUE)
+```
+
+::: {.callout-tip}
+Η μόνη διαφορά από το Rank Sum: προσθέτουμε `paired = TRUE`. Η ίδια συνάρτηση `wilcox.test()` καλύπτει και τις δύο περιπτώσεις.
+:::
+
+---
+
+## 5. Kruskal-Wallis Test
+
+### Πότε;
+
+Όταν θέλουμε να συγκρίνουμε **τρεις ή περισσότερες ανεξάρτητες ομάδες** και δεν ισχύει η κανονικότητα.
+Αντικαθιστά την **one-way ANOVA**.
+
+### Υποθέσεις
+
+$$H_0: \text{Οι κατανομές όλων των ομάδων είναι ίδιες}$$
+
+$$H_A: \text{Τουλάχιστον μία ομάδα έχει διαφορετική κατανομή}$$
+
+### Παράδειγμα: Βαθμολογία Πόνου Μετά από Τρεις Θεραπείες
+
+Τριάντα ασθενείς με χρόνιο πόνο στη μέση τυχαιοποιούνται σε τρεις παρεμβάσεις. Μετράμε τη **βαθμολογία πόνου (VAS 0–100)** μετά από 4 εβδομάδες. Οι βαθμολογίες πόνου είναι συχνά ασύμμετρες και σε ordinal κλίμακα.
+
+```{r}
+#| label: kw-data
+
+set.seed(7)
+n_grp <- 10
+
+pain_physio   <- round(runif(n_grp, 20, 55))   # Φυσικοθεραπεία
+pain_acupunct <- round(runif(n_grp, 30, 65))   # Βελονισμός
+pain_control  <- round(runif(n_grp, 45, 80))   # Συνήθης φροντίδα
+
+df_pain <- tibble(
+  Group = factor(
+    rep(c("Φυσικοθεραπεία", "Βελονισμός", "Συνήθης φροντίδα"), each = n_grp),
+    levels = c("Φυσικοθεραπεία", "Βελονισμός", "Συνήθης φροντίδα")
+  ),
+  VAS = c(pain_physio, pain_acupunct, pain_control)
+)
+
+df_pain |>
+  group_by(Group) |>
+  summarise(
+    n      = n(),
+    Median = median(VAS),
+    IQR    = IQR(VAS),
+    Min    = min(VAS),
+    Max    = max(VAS)
+  )
+```
+
+```{r}
+#| label: kw-plot
+#| fig-cap: "Βαθμολογία πόνου (VAS) ανά θεραπευτική παρέμβαση"
+
+ggplot(df_pain, aes(x = Group, y = VAS, fill = Group)) +
+  geom_boxplot(alpha = 0.55, outlier.shape = NA) +
+  geom_jitter(width = 0.15, size = 2, alpha = 0.7) +
+  scale_fill_manual(values = c("steelblue", "seagreen3", "tomato")) +
+  labs(
+    title = "Βαθμολογία πόνου (VAS) ανά θεραπεία",
+    x = "Θεραπεία", y = "VAS (0–100)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+### Εκτέλεση στην R
+
+```{r}
+#| label: kw-run
+
+kruskal.test(VAS ~ Group, data = df_pain)
+```
+
+::: {.callout-note}
+**Πώς διαβάζω το output:**
+
+- **Kruskal-Wallis chi-squared**: η στατιστική ελέγχου (βασίζεται στις κατατάξεις)
+- **df**: βαθμοί ελευθερίας = $k - 1$ (αριθμός ομάδων − 1)
+- **p-value**: αν $p < 0.05$, υπάρχει στατιστικά σημαντική διαφορά κάπου μεταξύ των ομάδων
+:::
+
+---
+
+## 6. Post-hoc Αναλύσεις για Kruskal-Wallis
+
+Όπως και η ANOVA, το Kruskal-Wallis μας λέει ότι **κάπου** υπάρχει διαφορά — όχι **πού**. Χρησιμοποιούμε `pairwise.wilcox.test()` για ανά δύο συγκρίσεις.
+
+```{r}
+#| label: kw-posthoc
+
+pairwise.wilcox.test(
+  df_pain$VAS,
+  df_pain$Group,
+  p.adjust.method = "BH"   # Benjamini-Hochberg
+)
+```
+
+::: {.callout-note}
+**Μέθοδοι διόρθωσης p-value:**
+
+| Μέθοδος | Χαρακτηριστικά |
+|---------|----------------|
+| `"BH"` (Benjamini-Hochberg) | Ελέγχει **False Discovery Rate** — ισορροπεί ισχύ και έλεγχο. **Συχνά προτιμάται** |
+| `"bonferroni"` | Πολύ συντηρητικό — ελέγχει **Family-wise Error Rate** |
+| `"holm"` | Λιγότερο συντηρητικό από Bonferroni, ισχυρότερο |
+:::
+
+---
+
+## 7. Σύγκριση: Παραμετρικό vs Μη Παραμετρικό
+
+Για να δούμε πότε τα δύο αποτελέσματα συμφωνούν ή διαφέρουν, τρέχουμε και τα δύο τεστ στα ίδια δεδομένα:
+
+```{r}
+#| label: comparison-tests
+
+# Παράδειγμα: t-test vs Wilcoxon Rank Sum για τα δεδομένα νοσηλείας
+t_result  <- t.test(ward_A, ward_B)
+wx_result <- wilcox.test(ward_A, ward_B)
+
+tibble(
+  Τεστ      = c("Two-sample t-test", "Wilcoxon Rank Sum"),
+  `p-value` = c(round(t_result$p.value, 4), round(wx_result$p.value, 4))
+)
+```
+
+::: {.callout-tip}
+Σε δεδομένα με έντονη ασυμμετρία ή outliers, το Wilcoxon συχνά δίνει **μικρότερο p-value** από το t-test, επειδή οι κατατάξεις αμβλύνουν την επίδραση ακραίων τιμών. Σε κανονικά δεδομένα, τα δύο τεστ δίνουν παρόμοια αποτελέσματα.
+:::
+
+---
+
+## 8. Ασκήσεις
+
+### Άσκηση 1 — Wilcoxon Rank Sum με Δεδομένα Diabetes
+
+Φόρτωσε το dataset και συγκρίνε τη **διάμεσο BMI** μεταξύ ατόμων με και χωρίς διαβήτη:
+
+```{r}
+#| label: ex-diabetes-load
+
+DD <- read.csv("../data/diabetes.csv")
+
+DD <- DD |>
+  mutate(
+    Outcome = factor(Outcome, levels = c(0, 1),
+                     labels = c("No Diabetes", "Diabetes"))
+  )
+
+# Σύνοψη
+DD |>
+  group_by(Outcome) |>
+  summarise(
+    n      = n(),
+    Median = median(BMI),
+    IQR    = IQR(BMI),
+    Mean   = round(mean(BMI), 1)
+  )
+```
+
+**Ερωτήσεις:**
+
+1. Κάνε boxplot του BMI ανά Outcome.
+2. Εκτέλεσε `wilcox.test(BMI ~ Outcome, data = DD)`.
+3. Ποιο είναι το p-value; Ποια η απόφαση σου;
+4. Συγκρίνε με το `t.test(BMI ~ Outcome, data = DD)`. Τα αποτελέσματα συμφωνούν;
+
+```{r}
+#| label: ex1-nonpar
+
+# Boxplot
+ggplot(DD, aes(x = Outcome, y = BMI, fill = Outcome)) +
+  geom_boxplot(alpha = 0.55, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.25, size = 1.2) +
+  scale_fill_manual(values = c("steelblue", "tomato")) +
+  labs(title = "BMI ανά Outcome", x = "", y = "BMI") +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+
+# Wilcoxon Rank Sum
+wilcox.test(BMI ~ Outcome, data = DD)
+
+# Σύγκριση με t-test
+t.test(BMI ~ Outcome, data = DD)
+```
+
+---
+
+### Άσκηση 2 — Kruskal-Wallis με Κατηγορίες Ηλικίας
+
+Δημιούργησε κατηγορίες ηλικίας και ελέγξε αν η κατανομή της **γλυκόζης** διαφέρει μεταξύ τους:
+
+```{r}
+#| label: ex2-kw
+
+DD <- DD |>
+  mutate(
+    Age_group = case_when(
+      Age < 30             ~ "< 30",
+      Age >= 30 & Age < 50 ~ "30–49",
+      Age >= 50            ~ "≥ 50"
+    ),
+    Age_group = factor(Age_group, levels = c("< 30", "30–49", "≥ 50"))
+  )
+
+# Kruskal-Wallis
+kruskal.test(Glucose ~ Age_group, data = DD)
+
+# Post-hoc
+pairwise.wilcox.test(DD$Glucose, DD$Age_group, p.adjust.method = "BH")
+```
+
+**Ερωτήσεις:**
+
+1. Υπάρχει στατιστικά σημαντική διαφορά γλυκόζης μεταξύ ηλικιακών ομάδων;
+2. Ποιες ομάδες διαφέρουν μεταξύ τους;
+3. Σε ποια ηλικιακή ομάδα είναι υψηλότερη η διάμεσος γλυκόζης;
+
+---
+
+### Άσκηση 3 — Επιλογή Τεστ
+
+Για κάθε σενάριο, επέλεξε το κατάλληλο τεστ (t-test / Wilcoxon Rank Sum / Paired t-test / Wilcoxon Signed Rank / ANOVA / Kruskal-Wallis) και εξήγησε γιατί:
+
+1. Συγκρίνουμε τη διάμεσο ημέρες άδεια ασθενείας σε 3 επαγγελματικές ομάδες. Το Q-Q plot δείχνει έντονη ασυμμετρία.
+
+2. Μετράμε το σάκχαρο νηστείας σε 50 ασθενείς πριν και μετά από δίαιτα 8 εβδομάδων. Ο έλεγχος κανονικότητας δείχνει $p = 0.12$.
+
+3. Συγκρίνουμε βαθμολογίες ικανοποίησης ασθενών (κλίμακα 1–5) μεταξύ δύο νοσοκομείων.
+
+---
+
+## 9. Σύνοψη
+
+- Τα μη παραμετρικά τεστ χρησιμοποιούνται όταν **δεν ισχύει η κανονικότητα**, το δείγμα είναι μικρό ή τα δεδομένα είναι ordinal.
+- Βασίζονται στις **κατατάξεις (ranks)** των τιμών — γι' αυτό είναι ανθεκτικά σε outliers.
+- Έχουν **μικρότερη στατιστική ισχύ** από τα παραμετρικά ανάλογά τους όταν η κανονικότητα ισχύει.
+
+| Παραμετρικό | Μη παραμετρικό | Συνάρτηση R |
+|-------------|----------------|-------------|
+| Two-sample t-test | Wilcoxon Rank Sum | `wilcox.test(x, y)` |
+| Paired t-test | Wilcoxon Signed Rank | `wilcox.test(x, y, paired = TRUE)` |
+| One-way ANOVA | Kruskal-Wallis | `kruskal.test(y ~ group)` |
+| Post-hoc Tukey | Pairwise Wilcoxon | `pairwise.wilcox.test(y, group, p.adjust.method = "BH")` |
+
+---
