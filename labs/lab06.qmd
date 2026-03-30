@@ -1,0 +1,461 @@
+---
+title: "Lab 6 – Ανάλυση Διακύμανσης (ANOVA)"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: true
+execute:
+  warning: false
+  message: false
+---
+
+## Στόχοι
+
+Με το τέλος του εργαστηρίου θα μπορείς να:
+
+- εξηγείς γιατί η ANOVA είναι προτιμότερη από πολλαπλά t-tests
+- κατανοείς τη λογική **between-groups** και **within-groups** διακύμανσης
+- διατυπώνεις $H_0$ και $H_A$ για ANOVA
+- εκτελείς one-way ANOVA στην R με `aov()`
+- ελέγχεις τις προϋποθέσεις (κανονικότητα, ομοσκεδαστικότητα)
+- εφαρμόζεις post-hoc αναλύσεις (Tukey, Bonferroni)
+
+---
+
+## Προετοιμασία
+
+```{r setup}
+options(timeout = 600)
+
+pkgs <- c("dplyr", "ggplot2", "tibble", "readr")
+
+to_install <- setdiff(pkgs, rownames(installed.packages()))
+if (length(to_install) > 0) {
+  install.packages(to_install, repos = "https://cloud.r-project.org")
+}
+
+suppressPackageStartupMessages(
+  invisible(lapply(pkgs, library, character.only = TRUE))
+)
+
+set.seed(42)
+```
+
+---
+
+## 1. Γιατί Δεν Κάνουμε Πολλαπλά t-tests;
+
+Στο **Lab 5** μάθαμε το t-test για σύγκριση **δύο** ομάδων. Τι γίνεται όταν έχουμε **τρεις ή περισσότερες** ομάδες;
+
+Μια πρώτη σκέψη: να κάνουμε t-test για κάθε ζευγάρι ομάδων ξεχωριστά.
+
+Με 3 ομάδες (Α, Β, Γ) χρειαζόμαστε:
+
+- Α vs Β
+- Α vs Γ
+- Β vs Γ
+
+= **3 ξεχωριστά t-tests**, το καθένα με $\alpha = 0.05$.
+
+**Το πρόβλημα:** κάθε τεστ έχει 5% πιθανότητα να κάνει Σφάλμα Τύπου Ι. Αν τα τρέξουμε ανεξάρτητα, η **συνολική** πιθανότητα να βγει τουλάχιστον ένα ψευδώς θετικό αποτέλεσμα είναι:
+
+$$
+P(\text{τουλάχιστον 1 λάθος}) = 1 - (1 - \alpha)^k
+$$
+
+Με $k = 3$ τεστ και $\alpha = 0.05$:
+
+$$
+1 - (1 - 0.05)^3 = 1 - 0.857 = \mathbf{0.143}
+$$
+
+Δηλαδή **14.3%** — σχεδόν τριπλάσια από το 5% που νομίζαμε!
+
+```{r}
+#| label: type1-inflation
+
+k_vals <- 1:15
+alpha  <- 0.05
+
+tibble(
+  k         = k_vals,
+  inflation = 1 - (1 - alpha)^k_vals
+) |>
+  ggplot(aes(x = k, y = inflation)) +
+  geom_line(linewidth = 1.2, color = "tomato") +
+  geom_point(size = 2.5, color = "tomato") +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "gray40") +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title   = "Φούσκωμα Σφάλματος Τύπου Ι με πολλαπλά t-tests",
+    x       = "Αριθμός t-tests (k)",
+    y       = "P(≥ 1 ψευδώς θετικό)",
+    caption = "Διακεκομμένη γραμμή: α = 5%"
+  ) +
+  theme_minimal(base_size = 13)
+```
+
+::: {.callout-note}
+Η **ANOVA** λύνει αυτό το πρόβλημα: ελέγχει **όλες τις ομάδες ταυτόχρονα** με ένα και μόνο τεστ, διατηρώντας το επίπεδο σημαντικότητας στο $\alpha = 0.05$.
+:::
+
+---
+
+## 2. Η Βασική Λογική της ANOVA
+
+Η ανάλυση διακύμανσης βασίζεται σε μια απλή ιδέα:
+
+> «Αν οι ομάδες έχουν πράγματι **διαφορετικούς** μέσους, τότε η διακύμανση **μεταξύ** ομάδων θα είναι μεγαλύτερη από τη διακύμανση **εντός** ομάδων.»
+
+Διακρίνουμε δύο πηγές διακύμανσης:
+
+| Πηγή | Συντομογραφία | Σημαίνει |
+|------|---------------|----------|
+| **Between groups** (μεταξύ ομάδων) | $SS_B$ | Πόσο διαφέρουν οι μέσοι των ομάδων από τον συνολικό μέσο |
+| **Within groups** (εντός ομάδων) | $SS_W$ | Πόσο διαφέρουν οι παρατηρήσεις μέσα σε κάθε ομάδα |
+
+Η συνολική διακύμανση είναι το άθροισμά τους:
+
+$$
+SS_T = SS_B + SS_W
+$$
+
+---
+
+## 3. Η Στατιστική F
+
+Υπολογίζουμε τα **Mean Squares** διαιρώντας με τους αντίστοιχους βαθμούς ελευθερίας:
+
+$$
+MS_B = \frac{SS_B}{k - 1}
+\qquad
+MS_W = \frac{SS_W}{N - k}
+$$
+
+Όπου $k$ = αριθμός ομάδων, $N$ = συνολικό μέγεθος δείγματος.
+
+Η **στατιστική F** είναι ο λόγος τους:
+
+$$
+F = \frac{MS_B}{MS_W}
+$$
+
+- Αν $F \approx 1$: οι ομάδες μοιάζουν (between ≈ within διακύμανση)
+- Αν $F \gg 1$: υπάρχει μεγάλη διαφορά μεταξύ ομάδων
+
+Υπό $H_0$, η στατιστική $F$ ακολουθεί την **κατανομή F** με $(k-1,\ N-k)$ βαθμούς ελευθερίας.
+
+---
+
+## 4. Μηδενική και Εναλλακτική Υπόθεση
+
+$$
+H_0: \mu_1 = \mu_2 = \cdots = \mu_k
+\quad \text{(όλοι οι μέσοι είναι ίσοι)}
+$$
+
+$$
+H_A: \text{τουλάχιστον ένας μέσος διαφέρει από τους υπόλοιπους}
+$$
+
+Τα **βήματα** του ελέγχου (όπως στο Lab 5):
+
+1. Διατυπώνω $H_0$ και $H_A$.
+2. Επιλέγω $\alpha = 0.05$.
+3. Υπολογίζω τη στατιστική $F$.
+4. Υπολογίζω το $p$-value.
+5. Αν $p \le 0.05$: απορρίπτω $H_0$.
+
+::: {.callout-warning}
+Ένα σημαντικό αποτέλεσμα ANOVA λέει ότι **κάποιες** ομάδες διαφέρουν — όχι **ποιες**. Για αυτό χρειαζόμαστε **post-hoc ανάλυση** (βλ. Ενότητα 9).
+:::
+
+---
+
+## 5. Τα Δεδομένα: Τρεις Διατροφικές Παρεμβάσεις
+
+Δημιουργούμε ένα προσομοιωμένο κλινικό dataset. **60 ασθενείς** με προδιαβήτη τυχαιοποιούνται σε τρεις ομάδες:
+
+- **Control** — συνήθης διατροφή
+- **Mediterranean** — μεσογειακή διατροφή
+- **Low-carb** — δίαιτα χαμηλών υδατανθράκων
+
+Μετράμε τη **μείωση HbA1c (%)** μετά από 12 εβδομάδες.
+
+```{r}
+#| label: sim-anova-data
+
+set.seed(42)
+n_grp <- 20
+
+df_diet <- tibble(
+  group = factor(
+    rep(c("Control", "Mediterranean", "Low-carb"), each = n_grp),
+    levels = c("Control", "Mediterranean", "Low-carb")
+  ),
+  hba1c_drop = c(
+    rnorm(n_grp, mean = 0.3, sd = 0.4),  # Control
+    rnorm(n_grp, mean = 0.8, sd = 0.5),  # Mediterranean
+    rnorm(n_grp, mean = 1.2, sd = 0.5)   # Low-carb
+  )
+)
+
+df_diet |>
+  group_by(group) |>
+  summarise(
+    n    = n(),
+    Mean = round(mean(hba1c_drop), 2),
+    SD   = round(sd(hba1c_drop), 2),
+    Min  = round(min(hba1c_drop), 2),
+    Max  = round(max(hba1c_drop), 2)
+  )
+```
+
+---
+
+## 6. Γραφική Αναπαράσταση
+
+Πριν από οποιοδήποτε τεστ, **πάντα οπτικοποιούμε** τα δεδομένα.
+
+```{r}
+#| label: anova-boxplot
+#| fig-cap: "Μείωση HbA1c ανά διατροφική παρέμβαση"
+
+ggplot(df_diet, aes(x = group, y = hba1c_drop, fill = group)) +
+  geom_boxplot(alpha = 0.55, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.55, size = 1.8) +
+  scale_fill_manual(values = c("steelblue", "tomato", "seagreen3")) +
+  labs(
+    title = "Μείωση HbA1c ανά ομάδα παρέμβασης",
+    x     = "Ομάδα",
+    y     = "Μείωση HbA1c (%)",
+    fill  = "Ομάδα"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+```
+
+::: {.callout-tip}
+Βλέπουμε ότι η Low-carb ομάδα φαίνεται να έχει τη μεγαλύτερη μείωση. Η ANOVA θα μας πει αν αυτή η διαφορά είναι **στατιστικά σημαντική**.
+:::
+
+---
+
+## 7. Εκτέλεση ANOVA στην R
+
+```{r}
+#| label: run-aov
+
+res_aov <- aov(hba1c_drop ~ group, data = df_diet)
+
+summary(res_aov)
+```
+
+::: {.callout-note}
+**Πώς διαβάζω το ANOVA table:**
+
+| Στήλη | Σημαίνει |
+|-------|----------|
+| `Df` | Βαθμοί ελευθερίας |
+| `Sum Sq` | Άθροισμα τετραγώνων ($SS$) |
+| `Mean Sq` | Μέσο τετράγωνο ($MS = SS / Df$) |
+| `F value` | Η στατιστική $F = MS_B / MS_W$ |
+| `Pr(>F)` | Το $p$-value |
+:::
+
+---
+
+## 8. Έλεγχος Προϋποθέσεων
+
+Η ANOVA απαιτεί τρεις προϋποθέσεις:
+
+1. **Ανεξαρτησία** παρατηρήσεων — εξασφαλίζεται από τον σχεδιασμό (τυχαιοποίηση).
+2. **Κανονικότητα** εντός κάθε ομάδας.
+3. **Ομοσκεδαστικότητα** — ίσες (ή παρόμοιες) διασπορές μεταξύ ομάδων.
+
+### 8.1 Κανονικότητα — Q-Q Plot Υπολοίπων
+
+```{r}
+#| label: anova-qq
+#| fig-cap: "Q-Q plot: κανονικότητα υπολοίπων ANOVA"
+
+plot(res_aov, which = 2)
+```
+
+::: {.callout-tip}
+Αν τα σημεία ακολουθούν την ευθεία, τα υπόλοιπα κατανέμονται κανονικά. ✅
+:::
+
+### 8.2 Ομοσκεδαστικότητα — Residuals vs Fitted
+
+```{r}
+#| label: anova-resid
+#| fig-cap: "Residuals vs Fitted: έλεγχος ομοσκεδαστικότητας"
+
+plot(res_aov, which = 1)
+```
+
+::: {.callout-tip}
+Ψάχνουμε για ομοιόμορφη "διασπορά" των υπολοίπων γύρω από το 0 σε κάθε ομάδα — χωρίς εμφανές μοτίβο ή διαφορά εύρους.
+:::
+
+### 8.3 Bartlett Test (τυπικός έλεγχος ίσων διασπορών)
+
+```{r}
+#| label: bartlett
+
+bartlett.test(hba1c_drop ~ group, data = df_diet)
+```
+
+::: {.callout-note}
+- $H_0$: Όλες οι ομάδες έχουν ίσες διασπορές
+- $p > 0.05$ → δεν απορρίπτουμε $H_0$ → η προϋπόθεση ισχύει
+:::
+
+---
+
+## 9. Post-hoc Αναλύσεις
+
+Εφόσον η ANOVA έδειξε στατιστικά σημαντικό αποτέλεσμα, ελέγχουμε **ποιες** ομάδες διαφέρουν.
+
+### 9.1 Tukey HSD
+
+Η πιο συχνά χρησιμοποιούμενη μέθοδος για post-hoc σύγκριση μετά από ANOVA:
+
+```{r}
+#| label: tukey
+
+TukeyHSD(res_aov)
+```
+
+```{r}
+#| label: tukey-plot
+#| fig-cap: "Tukey HSD: 95% CI για κάθε ανά δύο σύγκριση"
+
+plot(TukeyHSD(res_aov), las = 1)
+```
+
+::: {.callout-note}
+**Ερμηνεία του Tukey plot:** Αν το 95% CI μιας σύγκρισης **δεν** περιλαμβάνει το 0, η διαφορά είναι στατιστικά σημαντική.
+:::
+
+### 9.2 Pairwise t-tests με Διόρθωση Bonferroni
+
+```{r}
+#| label: bonferroni
+
+pairwise.t.test(
+  df_diet$hba1c_drop,
+  df_diet$group,
+  p.adjust.method = "bonferroni"
+)
+```
+
+::: {.callout-note}
+**Tukey vs Bonferroni:**
+
+- **Tukey HSD**: ειδικά σχεδιασμένο για post-hoc ANOVA, ισορροπεί ισχύ και έλεγχο σφάλματος — **προτιμάται** για ANOVA.
+- **Bonferroni**: πολύ συντηρητικό (πολλαπλασιάζει τα p-values επί k), κατάλληλο για λίγες προκαθορισμένες συγκρίσεις.
+- **Holm** (`p.adjust.method = "holm"`): λιγότερο συντηρητικό από Bonferroni, καλή γενική επιλογή.
+:::
+
+---
+
+## 10. Ασκήσεις
+
+### Άσκηση 1 — ANOVA με Δεδομένα Diabetes
+
+Φόρτωσε το dataset και δημιούργησε κατηγορίες BMI:
+
+```{r}
+#| label: ex-load
+
+DD <- read.csv("../data/diabetes.csv")
+
+DD <- DD |>
+  mutate(
+    BMI_group = case_when(
+      BMI < 25             ~ "Normal",
+      BMI >= 25 & BMI < 30 ~ "Overweight",
+      BMI >= 30            ~ "Obese"
+    ),
+    BMI_group = factor(BMI_group, levels = c("Normal", "Overweight", "Obese"))
+  )
+
+table(DD$BMI_group)
+```
+
+**Ερωτήσεις:**
+
+1. Κάνε boxplot της `Glucose` ανά `BMI_group`.
+2. Εκτέλεσε ANOVA: διαφέρει η μέση γλυκόζη μεταξύ κατηγοριών BMI;
+3. Ποιο είναι το $p$-value; Ποια απόφαση παίρνεις για $\alpha = 0.05$;
+4. Κάνε post-hoc Tukey. Ποιες ομάδες διαφέρουν σημαντικά;
+
+```{r}
+#| label: ex1-anova
+
+# Boxplot
+ggplot(DD, aes(x = BMI_group, y = Glucose, fill = BMI_group)) +
+  geom_boxplot(alpha = 0.55, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.35, size = 1.2) +
+  scale_fill_manual(values = c("steelblue", "orange", "tomato")) +
+  labs(
+    title = "Γλυκόζη ανά κατηγορία ΔΜΣ",
+    x = "Κατηγορία ΔΜΣ", y = "Γλυκόζη (mg/dL)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(legend.position = "none")
+
+# ANOVA
+res_ex1 <- aov(Glucose ~ BMI_group, data = DD)
+summary(res_ex1)
+
+# Post-hoc
+TukeyHSD(res_ex1)
+```
+
+---
+
+### Άσκηση 2 — Έλεγχος Προϋποθέσεων
+
+Για την ANOVA της Άσκησης 1:
+
+1. Κάνε Q-Q plot και Residuals vs Fitted.
+2. Εκτέλεσε Bartlett test.
+3. Ισχύουν οι προϋποθέσεις;
+
+```{r}
+#| label: ex2-assumptions
+
+par(mfrow = c(1, 2))
+plot(res_ex1, which = c(1, 2))
+par(mfrow = c(1, 1))
+
+bartlett.test(Glucose ~ BMI_group, data = DD)
+```
+
+---
+
+### Άσκηση 3 — Ερμηνεία
+
+Χρησιμοποιώντας τα αποτελέσματα της Άσκησης 1, απάντησε στα παρακάτω:
+
+1. Ποια είναι η $H_0$ και η $H_A$ για αυτή την ανάλυση;
+2. Ποια είναι η τιμή του $F$ και του $p$-value;
+3. Αν δεν χρησιμοποιούσαμε ANOVA αλλά 3 ξεχωριστά t-tests ($k = 3$), ποια θα ήταν η πιθανότητα τουλάχιστον ενός Σφάλματος Τύπου Ι;
+4. Η διαφορά μεταξύ ποιων ομάδων είναι στατιστικά σημαντική;
+
+---
+
+## 11. Σύνοψη
+
+- Η ANOVA χρησιμοποιείται για σύγκριση **3 ή περισσότερων** ομάδων ως προς έναν συνεχή μέσο.
+- Αποφεύγει το **φούσκωμα του Σφάλματος Τύπου Ι** που προκαλούν πολλαπλά t-tests.
+- Βασίζεται στη στατιστική $F = MS_B / MS_W$: λόγος between-groups προς within-groups διακύμανσης.
+- Απαιτεί: **ανεξαρτησία**, **κανονικότητα**, **ομοσκεδαστικότητα**.
+- Ένα σημαντικό $p$-value σημαίνει «κάπου υπάρχει διαφορά» — χρειαζόμαστε **post-hoc ανάλυση** (Tukey, Bonferroni) για να βρούμε πού.
+
+---
